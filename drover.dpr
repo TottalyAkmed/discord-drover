@@ -31,6 +31,10 @@ type
     function Delete(s: TSocket): bool;
   end;
 
+const
+  OPTIONS_FILENAME = 'drover.ini';
+  DLL_FILENAME = 'version.dll';
+
 var
   RealGetFileVersionInfoA: function(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
   RealGetFileVersionInfoW: function(lptstrFilename: LPWSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
@@ -63,6 +67,7 @@ var
     dwFlags: DWORD; const lpTo: TSockAddr; iTolen: integer; lpOverlapped: LPWSAOVERLAPPED;
     lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): integer; stdcall;
 
+  currentProcessDir: string;
   socketManager: TSocketManager;
   options: TDroverOptions;
   proxyValue: string;
@@ -195,11 +200,42 @@ begin
   result := RealGetEnvironmentVariableW(lpName, lpBuffer, nSize);
 end;
 
+procedure CopyFilesToNewVersionFolderIfNeeded(lpApplicationName: LPCWSTR);
+var
+  launchingDir: string;
+  srcOptionsPath, srcDllPath, dstOptionsPath, dstDllPath: string;
+begin
+  if lpApplicationName = nil then
+    exit;
+
+  if not SameText(ExtractFileName(lpApplicationName), 'Discord.exe') then
+    exit;
+
+  if not SameText(ExtractFileName(ParamStr(0)), 'Discord.exe') then
+    exit;
+
+  launchingDir := IncludeTrailingPathDelimiter(ExtractFilePath(lpApplicationName));
+
+  srcOptionsPath := currentProcessDir + OPTIONS_FILENAME;
+  srcDllPath := currentProcessDir + DLL_FILENAME;
+  dstOptionsPath := launchingDir + OPTIONS_FILENAME;
+  dstDllPath := launchingDir + DLL_FILENAME;
+
+  if FileExists(launchingDir + 'Discord.exe') and FileExists(srcOptionsPath) and FileExists(srcDllPath) and
+    not FileExists(dstOptionsPath) and not FileExists(dstDllPath) then
+  begin
+    CopyFile(PChar(srcOptionsPath), PChar(dstOptionsPath), true);
+    CopyFile(PChar(srcDllPath), PChar(dstDllPath), true);
+  end;
+end;
+
 function MyCreateProcessW(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR;
   lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: bool; dwCreationFlags: DWORD;
   lpEnvironment: Pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfoW;
   var lpProcessInformation: TProcessInformation): bool; stdcall;
 begin
+  CopyFilesToNewVersionFolderIfNeeded(lpApplicationName);
+
   result := RealCreateProcessW(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes,
     bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
 end;
@@ -211,7 +247,7 @@ begin
   s := RealGetCommandLineW;
   if proxyValue <> '' then
   begin
-    if Pos('Discord.exe', ParamStr(0)) > 0 then
+    if SameText(ExtractFileName(ParamStr(0)), 'Discord.exe') then
       s := s + ' --proxy-server=' + proxyValue;
   end;
   result := PChar(s);
@@ -251,7 +287,7 @@ var
 begin
   SetLength(s, MAX_PATH);
   GetSystemDirectory(PChar(s), MAX_PATH);
-  result := IncludeTrailingBackSlash(PChar(s));
+  result := IncludeTrailingPathDelimiter(PChar(s));
 end;
 
 procedure LoadOriginalVersionDll;
@@ -312,7 +348,7 @@ var
   filename: string;
 begin
   try
-    filename := ExtractFilePath(ParamStr(0)) + 'drover.ini';
+    filename := currentProcessDir + OPTIONS_FILENAME;
 
     f := TIniFile.Create(filename);
     try
@@ -344,6 +380,7 @@ exports
   MyVerQueryValueW name 'VerQueryValueW';
 
 begin
+  currentProcessDir := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
   socketManager := TSocketManager.Create;
 
   options := LoadOptions;
