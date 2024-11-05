@@ -14,7 +14,7 @@ type
     isTcp: boolean;
     isUdp: boolean;
     hasSent: boolean;
-    fakeHttpsProxyFlag: boolean;
+    fakeHttpProxyFlag: boolean;
     createdAt: integer;
   end;
 
@@ -29,8 +29,8 @@ type
   public
     procedure Add(sock: TSocket; sockType, sockProtocol: integer);
     function IsFirstSend(sock: TSocket; var item: TSocketManagerItem): boolean;
-    procedure SetFakeHttpsProxyFlag(sock: TSocket);
-    function ResetFakeHttpsProxyFlag(sock: TSocket): boolean;
+    procedure SetFakeHttpProxyFlag(sock: TSocket);
+    function ResetFakeHttpProxyFlag(sock: TSocket): boolean;
 
     constructor Create;
     destructor Destroy; override;
@@ -94,7 +94,7 @@ begin
   item.isTcp := (sockType = SOCK_STREAM) and ((sockProtocol = IPPROTO_TCP) or (sockProtocol = 0));
   item.isUdp := (sockType = SOCK_DGRAM) and ((sockProtocol = IPPROTO_UDP) or (sockProtocol = 0));
   item.hasSent := false;
-  item.fakeHttpsProxyFlag := false;
+  item.fakeHttpProxyFlag := false;
   item.createdAt := GetTickCount64;
 
   criticalSection.Enter;
@@ -132,7 +132,7 @@ begin
   end;
 end;
 
-procedure TSocketManager.SetFakeHttpsProxyFlag(sock: TSocket);
+procedure TSocketManager.SetFakeHttpProxyFlag(sock: TSocket);
 var
   i: integer;
 begin
@@ -140,23 +140,23 @@ begin
   try
     i := FindIndexBySock(sock);
     if i >= 0 then
-      items[i].fakeHttpsProxyFlag := true;
+      items[i].fakeHttpProxyFlag := true;
   finally
     criticalSection.Leave;
   end;
 end;
 
-function TSocketManager.ResetFakeHttpsProxyFlag(sock: TSocket): boolean;
+function TSocketManager.ResetFakeHttpProxyFlag(sock: TSocket): boolean;
 var
   i: integer;
 begin
   criticalSection.Enter;
   try
     i := FindIndexBySock(sock);
-    if (i = -1) or (not items[i].fakeHttpsProxyFlag) then
+    if (i = -1) or (not items[i].fakeHttpProxyFlag) then
       exit(false);
 
-    items[i].fakeHttpsProxyFlag := false;
+    items[i].fakeHttpProxyFlag := false;
     result := true;
   finally
     criticalSection.Leave;

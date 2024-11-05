@@ -21,7 +21,7 @@ type
 
   TProxyValue = record
     url: string;
-    ipAndPort: string;
+    hostAndPort: string;
     isSpecified: boolean;
     isSocks5: boolean;
 
@@ -76,18 +76,25 @@ var
 procedure TProxyValue.ParseFromString(url: string);
 var
   match: TMatch;
+  prot: string;
 begin
-  self.url := url;
-  self.ipAndPort := url;
-  self.isSpecified := (url <> '');
+  self.url := '';
+  self.hostAndPort := '';
+  self.isSpecified := false;
   self.isSocks5 := false;
 
-  match := TRegEx.match(url, '\Asocks5://(.*)\z');
-  if match.Success then
-  begin
-    self.ipAndPort := match.Groups[1].Value;
-    self.isSocks5 := true;
-  end;
+  match := TRegEx.match(Trim(url), '\A(?:([a-z\d]+)://)?(?:(.+):(.+)@)?(.+):(\d+)\z', [roIgnoreCase]);
+  if not match.Success then
+    exit;
+
+  prot := LowerCase(match.Groups[1].Value);
+  if (prot = '') or (prot = 'https') then
+    prot := 'http';
+
+  self.hostAndPort := match.Groups[4].Value + ':' + match.Groups[5].Value;
+  self.url := prot + '://' + self.hostAndPort;
+  self.isSpecified := true;
+  self.isSocks5 := (prot = 'socks5');
 end;
 
 function MyGetFileVersionInfoA(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
@@ -167,7 +174,7 @@ begin
     if (Pos('http_proxy', s) > 0) or (Pos('HTTP_PROXY', s) > 0) or (Pos('https_proxy', s) > 0) or
       (Pos('HTTPS_PROXY', s) > 0) then
     begin
-      newValue := proxyValue.ipAndPort;
+      newValue := proxyValue.hostAndPort;
       StringToWideChar(newValue, lpBuffer, nSize);
       result := Length(newValue);
       exit;
@@ -263,7 +270,7 @@ begin
     lpCompletionRoutine);
 end;
 
-function ConvertHttpsToSocks5(socketManagerItem: TSocketManagerItem; const buf; len, flags: integer): bool;
+function ConvertHttpToSocks5(socketManagerItem: TSocketManagerItem; const buf; len, flags: integer): bool;
 var
   s, targetHost: RawByteString;
   targetPort: word;
@@ -325,7 +332,7 @@ begin
   if RealSend(sock, s[1], i, flags) <> i then
     exit;
 
-  sockManager.SetFakeHttpsProxyFlag(sock);
+  sockManager.SetFakeHttpProxyFlag(sock);
 
   result := true;
 end;
@@ -336,7 +343,7 @@ var
 begin
   if sockManager.IsFirstSend(sock, sockManagerItem) then
   begin
-    if ConvertHttpsToSocks5(sockManagerItem, buf, len, flags) then
+    if ConvertHttpToSocks5(sockManagerItem, buf, len, flags) then
       exit(len);
   end;
 
@@ -350,7 +357,7 @@ var
 begin
   result := RealRecv(sock, buf, len, flags);
 
-  if (result > 0) and sockManager.ResetFakeHttpsProxyFlag(sock) then
+  if (result > 0) and sockManager.ResetFakeHttpProxyFlag(sock) then
   begin
     if result >= 10 then
     begin
