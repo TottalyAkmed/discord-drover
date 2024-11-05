@@ -8,27 +8,24 @@ uses
   TlHelp32,
   WinSock,
   WinSock2,
-  IniFiles;
+  IniFiles,
+  System.RegularExpressions,
+  SocketManager;
 
 type
   TDroverOptions = record
     proxy: string;
-    useNekoboxProxy: bool;
+    useNekoboxProxy: boolean;
     nekoboxProxy: string;
   end;
 
-  TSocketData = record
-    s: TSocket;
-  end;
+  TProxyValue = record
+    url: string;
+    ipAndPort: string;
+    isSpecified: boolean;
+    isSocks5: boolean;
 
-  TSocketManager = class
-  private
-    sockets: array of TSocketData;
-
-    function GetIndex(s: TSocket): integer;
-  public
-    procedure Add(s: TSocket);
-    function Delete(s: TSocket): bool;
+    procedure ParseFromString(url: string);
   end;
 
 const
@@ -62,55 +59,35 @@ var
     var lpProcessInformation: TProcessInformation): bool; stdcall;
   RealGetCommandLineW: function: LPWSTR; stdcall;
 
-  RealSocket: function(af, Struct, protocol: integer): TSocket; stdcall;
+  RealSocket: function(af, type_, protocol: integer): TSocket; stdcall;
+  RealWSASocket: function(af, type_, protocol: integer; lpProtocolInfo: LPWSAPROTOCOL_INFO; g: GROUP; dwFlags: DWORD)
+    : TSocket; stdcall;
   RealWSASendTo: function(s: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: LPDWORD;
     dwFlags: DWORD; const lpTo: TSockAddr; iTolen: integer; lpOverlapped: LPWSAOVERLAPPED;
     lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): integer; stdcall;
+  RealSend: function(s: TSocket; const buf; len, flags: integer): integer; stdcall;
+  RealRecv: function(s: TSocket; var buf; len, flags: integer): integer; stdcall;
 
   currentProcessDir: string;
-  socketManager: TSocketManager;
+  sockManager: TSocketManager;
   options: TDroverOptions;
-  proxyValue: string;
+  proxyValue: TProxyValue;
 
-function TSocketManager.GetIndex(s: TSocket): integer;
+procedure TProxyValue.ParseFromString(url: string);
 var
-  i: integer;
+  match: TMatch;
 begin
-  for i := 0 to High(sockets) do
+  self.url := url;
+  self.ipAndPort := url;
+  self.isSpecified := (url <> '');
+  self.isSocks5 := false;
+
+  match := TRegEx.match(url, '\Asocks5://(.*)\z');
+  if match.Success then
   begin
-    if sockets[i].s = s then
-    begin
-      exit(i);
-    end;
+    self.ipAndPort := match.Groups[1].Value;
+    self.isSocks5 := true;
   end;
-  result := -1;
-end;
-
-procedure TSocketManager.Add(s: TSocket);
-var
-  i: integer;
-begin
-  i := GetIndex(s);
-  if i = -1 then
-  begin
-    i := Length(sockets);
-    SetLength(sockets, i + 1);
-  end;
-  sockets[i].s := s;
-end;
-
-function TSocketManager.Delete(s: TSocket): bool;
-var
-  targetIndex, lastIndex: integer;
-begin
-  targetIndex := GetIndex(s);
-  if targetIndex = -1 then
-    exit(false);
-  lastIndex := High(sockets);
-  if targetIndex < lastIndex then
-    sockets[targetIndex] := sockets[lastIndex];
-  SetLength(sockets, lastIndex);
-  result := true;
 end;
 
 function MyGetFileVersionInfoA(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
@@ -184,13 +161,13 @@ var
   s: string;
   newValue: string;
 begin
-  if proxyValue <> '' then
+  if proxyValue.isSpecified then
   begin
     s := lpName;
     if (Pos('http_proxy', s) > 0) or (Pos('HTTP_PROXY', s) > 0) or (Pos('https_proxy', s) > 0) or
       (Pos('HTTPS_PROXY', s) > 0) then
     begin
-      newValue := proxyValue;
+      newValue := proxyValue.ipAndPort;
       StringToWideChar(newValue, lpBuffer, nSize);
       result := Length(newValue);
       exit;
@@ -245,40 +222,153 @@ var
   s: string;
 begin
   s := RealGetCommandLineW;
-  if proxyValue <> '' then
+  if proxyValue.isSpecified then
   begin
     if SameText(ExtractFileName(ParamStr(0)), 'Discord.exe') then
-      s := s + ' --proxy-server=' + proxyValue;
+      s := s + ' --proxy-server=' + proxyValue.url;
   end;
   result := PChar(s);
 end;
 
-function MySocket(af, Struct, protocol: integer): TSocket; stdcall;
-var
-  socket: TSocket;
+function MySocket(af, type_, protocol: integer): TSocket; stdcall;
 begin
-  socket := RealSocket(af, Struct, protocol);
-  if Struct = SOCK_DGRAM then
-  begin
-    socketManager.Add(socket);
-  end;
-  result := socket;
+  result := RealSocket(af, type_, protocol);
+  sockManager.Add(result, type_, protocol);
 end;
 
-function MyWSASendTo(s: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: LPDWORD;
+function MyWSASocket(af, type_, protocol: integer; lpProtocolInfo: LPWSAPROTOCOL_INFO; g: GROUP; dwFlags: DWORD)
+  : TSocket; stdcall;
+begin
+  result := RealWSASocket(af, type_, protocol, lpProtocolInfo, g, dwFlags);
+  sockManager.Add(result, type_, protocol);
+end;
+
+function MyWSASendTo(sock: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: LPDWORD;
   dwFlags: DWORD; const lpTo: TSockAddr; iTolen: integer; lpOverlapped: LPWSAOVERLAPPED;
   lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): integer; stdcall;
 var
   zeroByte: Byte;
+  sockManagerItem: TSocketManagerItem;
 begin
-  if socketManager.Delete(s) and (lpBuffers.len = 74) then
+  if sockManager.IsFirstSend(sock, sockManagerItem) then
   begin
-    zeroByte := 0;
-    sendto(s, Pointer(@zeroByte)^, 1, 0, @lpTo, iTolen);
+    if sockManagerItem.isUdp and (lpBuffers.len = 74) then
+    begin
+      zeroByte := 0;
+      sendto(sock, Pointer(@zeroByte)^, 1, 0, @lpTo, iTolen);
+    end;
   end;
 
-  result := RealWSASendTo(s, lpBuffers, dwBufferCount, lpNumberOfBytesSent, dwFlags, lpTo, iTolen, lpOverlapped,
+  result := RealWSASendTo(sock, lpBuffers, dwBufferCount, lpNumberOfBytesSent, dwFlags, lpTo, iTolen, lpOverlapped,
     lpCompletionRoutine);
+end;
+
+function ConvertHttpsToSocks5(socketManagerItem: TSocketManagerItem; const buf; len, flags: integer): bool;
+var
+  s, targetHost: RawByteString;
+  targetPort: word;
+  fdSet: TFDSet;
+  tv: TTimeVal;
+  i: integer;
+  match: TMatch;
+  sock: TSocket;
+begin
+  result := false;
+
+  if (not proxyValue.isSocks5) or (not socketManagerItem.isTcp) then
+    exit;
+
+  i := 8;
+  if len < i then
+    exit;
+  SetLength(s, i);
+  Move(buf, s[1], i);
+  if s <> 'CONNECT ' then
+    exit;
+
+  SetLength(s, len);
+  Move(buf, s[1], len);
+  match := TRegEx.match(string(s), '\ACONNECT ([a-z\d.-]+):(\d+)', [roIgnoreCase]);
+  if not match.Success then
+    exit;
+  targetHost := RawByteString(match.Groups[1].Value);
+  targetPort := StrToIntDef(match.Groups[2].Value, 0);
+
+  sock := socketManagerItem.sock;
+
+  s := #$05#$01#$00;
+  i := Length(s);
+  if RealSend(sock, s[1], i, flags) <> i then
+    exit;
+
+  FD_ZERO(fdSet);
+  _FD_SET(sock, fdSet);
+  tv.tv_sec := 10;
+  tv.tv_usec := 0;
+
+  if select(0, @fdSet, nil, nil, @tv) < 1 then
+    exit;
+  if not FD_ISSET(sock, fdSet) then
+    exit;
+
+  i := 2;
+  SetLength(s, i);
+  if RealRecv(sock, s[1], i, 0) <> i then
+    exit;
+
+  if s <> #$05#$00 then
+    exit;
+
+  s := #$05#$01#$00#$03 + RawByteString(AnsiChar(Length(targetHost))) + targetHost +
+    RawByteString(AnsiChar(Hi(targetPort))) + RawByteString(AnsiChar(Lo(targetPort)));
+  i := Length(s);
+  if RealSend(sock, s[1], i, flags) <> i then
+    exit;
+
+  sockManager.SetFakeHttpsProxyFlag(sock);
+
+  result := true;
+end;
+
+function MySend(sock: TSocket; const buf; len, flags: integer): integer; stdcall;
+var
+  sockManagerItem: TSocketManagerItem;
+begin
+  if sockManager.IsFirstSend(sock, sockManagerItem) then
+  begin
+    if ConvertHttpsToSocks5(sockManagerItem, buf, len, flags) then
+      exit(len);
+  end;
+
+  result := RealSend(sock, buf, len, flags);
+end;
+
+function MyRecv(sock: TSocket; var buf; len, flags: integer): integer; stdcall;
+var
+  s: RawByteString;
+  i: integer;
+begin
+  result := RealRecv(sock, buf, len, flags);
+
+  if (result > 0) and sockManager.ResetFakeHttpsProxyFlag(sock) then
+  begin
+    if result >= 10 then
+    begin
+      // Potential issue: real server data may mix with the SOCKS5 response
+      SetLength(s, result);
+      Move(buf, s[1], result);
+      if Copy(s, 1, 3) = #$05#$00#$00 then
+      begin
+        s := 'HTTP/1.1 200 Connection Established' + #13#10 + #13#10;
+        i := Length(s);
+        if i <= len then
+        begin
+          Move(s[1], buf, i);
+          exit(i);
+        end;
+      end;
+    end;
+  end;
 end;
 
 function GetSystemFolder: string;
@@ -294,7 +384,7 @@ procedure LoadOriginalVersionDll;
 var
   hOriginal: THandle;
 begin
-  hOriginal := LoadLibrary(PChar(GetSystemFolder() + 'version.dll'));
+  hOriginal := LoadLibrary(PChar(GetSystemFolder + 'version.dll'));
   if hOriginal = 0 then
     raise Exception.Create('Error.');
 
@@ -381,14 +471,14 @@ exports
 
 begin
   currentProcessDir := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
-  socketManager := TSocketManager.Create;
+  sockManager := TSocketManager.Create;
 
   options := LoadOptions;
 
   if options.useNekoboxProxy and IsNekoBoxExists then
-    proxyValue := options.nekoboxProxy
+    proxyValue.ParseFromString(options.nekoboxProxy)
   else
-    proxyValue := options.proxy;
+    proxyValue.ParseFromString(options.proxy);
 
   LoadOriginalVersionDll;
 
@@ -397,6 +487,9 @@ begin
   RealGetCommandLineW := InterceptCreate(@GetCommandLineW, @MyGetCommandLineW, nil);
 
   RealSocket := InterceptCreate(@socket, @MySocket, nil);
+  RealWSASocket := InterceptCreate(@WSASocket, @MyWSASocket, nil);
   RealWSASendTo := InterceptCreate(@WSASendTo, @MyWSASendTo, nil);
+  RealSend := InterceptCreate(@send, @MySend, nil);
+  RealRecv := InterceptCreate(@recv, @MyRecv, nil);
 
 end.
