@@ -20,12 +20,19 @@ type
   end;
 
   TProxyValue = record
-    url: string;
-    hostAndPort: string;
     isSpecified: boolean;
+    prot: string;
+    login: string;
+    password: string;
+    host: string;
+    port: integer;
+    isHttp: boolean;
     isSocks5: boolean;
+    isAuth: boolean;
 
     procedure ParseFromString(url: string);
+    function FormatToHttpEnv: string;
+    function FormatToChromeProxy: string;
   end;
 
 const
@@ -62,6 +69,9 @@ var
   RealSocket: function(af, type_, protocol: integer): TSocket; stdcall;
   RealWSASocket: function(af, type_, protocol: integer; lpProtocolInfo: LPWSAPROTOCOL_INFO; g: GROUP; dwFlags: DWORD)
     : TSocket; stdcall;
+  RealWSASend: function(s: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: PDWORD;
+    dwFlags: DWORD; lpOverlapped: LPWSAOVERLAPPED; lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE)
+    : integer; stdcall;
   RealWSASendTo: function(s: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: LPDWORD;
     dwFlags: DWORD; const lpTo: TSockAddr; iTolen: integer; lpOverlapped: LPWSAOVERLAPPED;
     lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): integer; stdcall;
@@ -76,25 +86,55 @@ var
 procedure TProxyValue.ParseFromString(url: string);
 var
   match: TMatch;
-  prot: string;
 begin
-  self.url := '';
-  self.hostAndPort := '';
-  self.isSpecified := false;
-  self.isSocks5 := false;
+  isSpecified := false;
+  prot := '';
+  login := '';
+  password := '';
+  host := '';
+  port := 0;
+  isHttp := false;
+  isSocks5 := false;
+  isAuth := false;
 
   match := TRegEx.match(Trim(url), '\A(?:([a-z\d]+)://)?(?:(.+):(.+)@)?(.+):(\d+)\z', [roIgnoreCase]);
   if not match.Success then
     exit;
 
-  prot := LowerCase(match.Groups[1].Value);
+  isSpecified := true;
+
+  prot := LowerCase(Trim(match.Groups[1].Value));
   if (prot = '') or (prot = 'https') then
     prot := 'http';
 
-  self.hostAndPort := match.Groups[4].Value + ':' + match.Groups[5].Value;
-  self.url := prot + '://' + self.hostAndPort;
-  self.isSpecified := true;
-  self.isSocks5 := (prot = 'socks5');
+  login := Trim(match.Groups[2].Value);
+  password := Trim(match.Groups[3].Value);
+
+  host := Trim(match.Groups[4].Value);
+  port := StrToIntDef(match.Groups[5].Value, 0);
+
+  isHttp := (prot = 'http');
+  isSocks5 := (prot = 'socks5');
+  isAuth := (login <> '') and (password <> '');
+end;
+
+function TProxyValue.FormatToHttpEnv: string;
+begin
+  if not isSpecified then
+    exit('');
+
+  result := 'http://';
+  if isAuth then
+    result := result + login + ':' + password + '@';
+  result := result + host + ':' + IntToStr(port);
+end;
+
+function TProxyValue.FormatToChromeProxy: string;
+begin
+  if isSpecified then
+    result := Format('%s://%s:%d', [prot, host, port])
+  else
+    result := '';
 end;
 
 function MyGetFileVersionInfoA(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
@@ -174,7 +214,7 @@ begin
     if (Pos('http_proxy', s) > 0) or (Pos('HTTP_PROXY', s) > 0) or (Pos('https_proxy', s) > 0) or
       (Pos('HTTPS_PROXY', s) > 0) then
     begin
-      newValue := proxyValue.hostAndPort;
+      newValue := proxyValue.FormatToHttpEnv;
       StringToWideChar(newValue, lpBuffer, nSize);
       result := Length(newValue);
       exit;
@@ -232,7 +272,7 @@ begin
   if proxyValue.isSpecified then
   begin
     if SameText(ExtractFileName(ParamStr(0)), 'Discord.exe') then
-      s := s + ' --proxy-server=' + proxyValue.url;
+      s := s + ' --proxy-server=' + proxyValue.FormatToChromeProxy;
   end;
   result := PChar(s);
 end;
@@ -248,6 +288,37 @@ function MyWSASocket(af, type_, protocol: integer; lpProtocolInfo: LPWSAPROTOCOL
 begin
   result := RealWSASocket(af, type_, protocol, lpProtocolInfo, g, dwFlags);
   sockManager.Add(result, type_, protocol);
+end;
+
+function AddHttpProxyAuthorizationHeader(socketManagerItem: TSocketManagerItem; lpBuffers: LPWSABUF;
+  dwBufferCount: DWORD; lpNumberOfBytesSent: PDWORD; dwFlags: DWORD; lpOverlapped: LPWSAOVERLAPPED;
+  lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): boolean;
+begin
+  result := false;
+
+  if (not proxyValue.isSpecified) or (not proxyValue.isHttp) or (not proxyValue.isAuth) or (not socketManagerItem.isTcp)
+  then
+    exit;
+
+  // TODO
+
+  exit(false);
+end;
+
+function MyWSASend(sock: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: PDWORD;
+  dwFlags: DWORD; lpOverlapped: LPWSAOVERLAPPED; lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE)
+  : integer; stdcall;
+var
+  sockManagerItem: TSocketManagerItem;
+begin
+  if sockManager.IsFirstSend(sock, sockManagerItem) then
+  begin
+    AddHttpProxyAuthorizationHeader(sockManagerItem, lpBuffers, dwBufferCount, lpNumberOfBytesSent, dwFlags,
+      lpOverlapped, lpCompletionRoutine);
+  end;
+
+  result := RealWSASend(sock, lpBuffers, dwBufferCount, lpNumberOfBytesSent, dwFlags, lpOverlapped,
+    lpCompletionRoutine);
 end;
 
 function MyWSASendTo(sock: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: LPDWORD;
@@ -270,7 +341,7 @@ begin
     lpCompletionRoutine);
 end;
 
-function ConvertHttpToSocks5(socketManagerItem: TSocketManagerItem; const buf; len, flags: integer): bool;
+function ConvertHttpToSocks5(socketManagerItem: TSocketManagerItem; const buf; len, flags: integer): boolean;
 var
   s, targetHost: RawByteString;
   targetPort: word;
@@ -282,7 +353,7 @@ var
 begin
   result := false;
 
-  if (not proxyValue.isSocks5) or (not socketManagerItem.isTcp) then
+  if (not proxyValue.isSpecified) or (not proxyValue.isSocks5) or (not socketManagerItem.isTcp) then
     exit;
 
   i := 8;
@@ -495,6 +566,7 @@ begin
 
   RealSocket := InterceptCreate(@socket, @MySocket, nil);
   RealWSASocket := InterceptCreate(@WSASocket, @MyWSASocket, nil);
+  RealWSASend := InterceptCreate(@WSASend, @MyWSASend, nil);
   RealWSASendTo := InterceptCreate(@WSASendTo, @MyWSASendTo, nil);
   RealSend := InterceptCreate(@send, @MySend, nil);
   RealRecv := InterceptCreate(@recv, @MyRecv, nil);
