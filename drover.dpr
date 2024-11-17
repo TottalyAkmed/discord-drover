@@ -10,34 +10,8 @@ uses
   WinSock2,
   IniFiles,
   System.RegularExpressions,
-  SocketManager;
-
-type
-  TDroverOptions = record
-    proxy: string;
-    useNekoboxProxy: boolean;
-    nekoboxProxy: string;
-  end;
-
-  TProxyValue = record
-    isSpecified: boolean;
-    prot: string;
-    login: string;
-    password: string;
-    host: string;
-    port: integer;
-    isHttp: boolean;
-    isSocks5: boolean;
-    isAuth: boolean;
-
-    procedure ParseFromString(url: string);
-    function FormatToHttpEnv: string;
-    function FormatToChromeProxy: string;
-  end;
-
-const
-  OPTIONS_FILENAME = 'drover.ini';
-  DLL_FILENAME = 'version.dll';
+  SocketManager,
+  Options;
 
 var
   RealGetFileVersionInfoA: function(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
@@ -80,62 +54,8 @@ var
 
   currentProcessDir: string;
   sockManager: TSocketManager;
-  options: TDroverOptions;
+  droverOptions: TDroverOptions;
   proxyValue: TProxyValue;
-
-procedure TProxyValue.ParseFromString(url: string);
-var
-  match: TMatch;
-begin
-  isSpecified := false;
-  prot := '';
-  login := '';
-  password := '';
-  host := '';
-  port := 0;
-  isHttp := false;
-  isSocks5 := false;
-  isAuth := false;
-
-  match := TRegEx.match(Trim(url), '\A(?:([a-z\d]+)://)?(?:(.+):(.+)@)?(.+):(\d+)\z', [roIgnoreCase]);
-  if not match.Success then
-    exit;
-
-  isSpecified := true;
-
-  prot := LowerCase(Trim(match.Groups[1].Value));
-  if (prot = '') or (prot = 'https') then
-    prot := 'http';
-
-  login := Trim(match.Groups[2].Value);
-  password := Trim(match.Groups[3].Value);
-
-  host := Trim(match.Groups[4].Value);
-  port := StrToIntDef(match.Groups[5].Value, 0);
-
-  isHttp := (prot = 'http');
-  isSocks5 := (prot = 'socks5');
-  isAuth := (login <> '') and (password <> '');
-end;
-
-function TProxyValue.FormatToHttpEnv: string;
-begin
-  if not isSpecified then
-    exit('');
-
-  result := 'http://';
-  if isAuth then
-    result := result + login + ':' + password + '@';
-  result := result + host + ':' + IntToStr(port);
-end;
-
-function TProxyValue.FormatToChromeProxy: string;
-begin
-  if isSpecified then
-    result := Format('%s://%s:%d', [prot, host, port])
-  else
-    result := '';
-end;
 
 function MyGetFileVersionInfoA(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
 begin
@@ -325,15 +245,18 @@ function MyWSASendTo(sock: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; l
   dwFlags: DWORD; const lpTo: TSockAddr; iTolen: integer; lpOverlapped: LPWSAOVERLAPPED;
   lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): integer; stdcall;
 var
-  zeroByte: Byte;
+  payload: byte;
   sockManagerItem: TSocketManagerItem;
 begin
   if sockManager.IsFirstSend(sock, sockManagerItem) then
   begin
     if sockManagerItem.isUdp and (lpBuffers.len = 74) then
     begin
-      zeroByte := 0;
-      sendto(sock, Pointer(@zeroByte)^, 1, 0, @lpTo, iTolen);
+      payload := 0;
+      sendto(sock, Pointer(@payload)^, 1, 0, @lpTo, iTolen);
+      payload := 1;
+      sendto(sock, Pointer(@payload)^, 1, 0, @lpTo, iTolen);
+      Sleep(50);
     end;
   end;
 
@@ -510,29 +433,6 @@ begin
   end;
 end;
 
-function LoadOptions: TDroverOptions;
-var
-  f: TIniFile;
-  filename: string;
-begin
-  try
-    filename := currentProcessDir + OPTIONS_FILENAME;
-
-    f := TIniFile.Create(filename);
-    try
-      with f do
-      begin
-        result.proxy := ReadString('drover', 'proxy', '');
-        result.useNekoboxProxy := ReadBool('drover', 'use-nekobox-proxy', false);
-        result.nekoboxProxy := ReadString('drover', 'nekobox-proxy', '127.0.0.1:2080');
-      end;
-    finally
-      f.Free;
-    end;
-  except
-  end;
-end;
-
 exports
   MyGetFileVersionInfoA name 'GetFileVersionInfoA',
   MyGetFileVersionInfoW name 'GetFileVersionInfoW',
@@ -551,12 +451,12 @@ begin
   currentProcessDir := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
   sockManager := TSocketManager.Create;
 
-  options := LoadOptions;
+  droverOptions := LoadOptions(currentProcessDir + OPTIONS_FILENAME);
 
-  if options.useNekoboxProxy and IsNekoBoxExists then
-    proxyValue.ParseFromString(options.nekoboxProxy)
+  if droverOptions.useNekoboxProxy and IsNekoBoxExists then
+    proxyValue.ParseFromString(droverOptions.nekoboxProxy)
   else
-    proxyValue.ParseFromString(options.proxy);
+    proxyValue.ParseFromString(droverOptions.proxy);
 
   LoadOriginalVersionDll;
 
