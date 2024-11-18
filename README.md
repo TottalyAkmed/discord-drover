@@ -6,6 +6,8 @@ The program works locally at the specific process level (without drivers) and do
 
 ## Installation
 
+The latest version of the program can be downloaded from the [latest release page](https://github.com/hdrover/discord-drover/releases/latest).
+
 ### Automatic Installation
 
 For an easier setup, use the included installer `drover.exe`. Run the program and fill in the proxy settings, then click **Install** to automatically place the necessary files in the correct folder.
