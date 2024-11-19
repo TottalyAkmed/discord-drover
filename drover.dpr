@@ -10,6 +10,7 @@ uses
   WinSock2,
   IniFiles,
   System.RegularExpressions,
+  System.NetEncoding,
   SocketManager,
   Options;
 
@@ -213,6 +214,9 @@ end;
 function AddHttpProxyAuthorizationHeader(socketManagerItem: TSocketManagerItem; lpBuffers: LPWSABUF;
   dwBufferCount: DWORD; lpNumberOfBytesSent: PDWORD; dwFlags: DWORD; lpOverlapped: LPWSAOVERLAPPED;
   lpCompletionRoutine: LPWSAOVERLAPPED_COMPLETION_ROUTINE): boolean;
+var
+  pck, injectedData, filler: RawByteString;
+  uaStartPos, uaEndPos, uaLen, fillerLen: integer;
 begin
   result := false;
 
@@ -220,9 +224,42 @@ begin
   then
     exit;
 
-  // TODO
+  if (dwBufferCount <> 1) or (lpBuffers.len < 1) then
+    exit;
 
-  exit(false);
+  SetLength(pck, lpBuffers.len);
+  Move(lpBuffers.buf^, pck[1], lpBuffers.len);
+
+  if Pos(RawByteString(#13#10 + 'Proxy-Authorization: '), pck) > 0 then
+    exit;
+
+  uaStartPos := Pos(RawByteString('User-Agent:'), pck);
+  if uaStartPos < 1 then
+    exit;
+
+  uaEndPos := Pos(RawByteString(#13#10), pck, uaStartPos);
+  if uaEndPos < 1 then
+    exit;
+
+  uaLen := uaEndPos - uaStartPos;
+
+  injectedData := 'Proxy-Authorization: Basic ' +
+    RawByteString(TNetEncoding.Base64.EncodeBytesToString(BytesOf(RawByteString(proxyValue.login + ':' +
+    proxyValue.password))));
+
+  fillerLen := uaLen - Length(injectedData);
+  if fillerLen < 6 then
+    exit;
+
+  filler := #13#10 + 'X: ' + RawByteString(StringOfChar('X', fillerLen - 5));
+  injectedData := injectedData + filler;
+  if Length(injectedData) <> uaLen then
+    exit;
+
+  Move(injectedData[1], pck[uaStartPos], uaLen);
+  Move(pck[1], lpBuffers.buf^, lpBuffers.len);
+
+  result := true;
 end;
 
 function MyWSASend(sock: TSocket; lpBuffers: LPWSABUF; dwBufferCount: DWORD; lpNumberOfBytesSent: PDWORD;
