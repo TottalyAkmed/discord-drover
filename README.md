@@ -37,5 +37,6 @@ proxy = http://127.0.0.1:1080
 
 - Forces Discord to use a specified proxy for TCP connections.
 - Slight interference with UDP traffic for bypassing voice chat restrictions.
+- Supports HTTP proxies with authentication (login and password).
 - No drivers or system-level modifications are required.
 - Works locally at the process level, offering an alternative to global VPN solutions.

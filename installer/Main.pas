@@ -22,11 +22,17 @@ type
     lPort: TLabel;
     MainMenu: TMainMenu;
     miAbout: TMenuItem;
+    cbAuth: TCheckBox;
+    eLogin: TEdit;
+    ePassword: TEdit;
+    lLogin: TLabel;
+    lPassword: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnInstallClick(Sender: TObject);
     procedure btnUninstallClick(Sender: TObject);
     procedure miAboutClick(Sender: TObject);
+    procedure cbAuthClick(Sender: TObject);
   private
     currentProcessDir: string;
     messageCaption: PChar;
@@ -37,6 +43,8 @@ type
     function GetNewestDiscordDir(list: TStringList): string;
     function IsDiscordRunning: boolean;
     function ShowDiscordRunningMessage: boolean;
+    procedure ProcessAuthCheckBoxValue;
+    function ValidateAndPrepareProxySettings(var url: string): boolean;
   public
     { Public declarations }
   end;
@@ -77,7 +85,13 @@ begin
     ePort.Text := IntToStr(proxyValue.port);
     rbHttp.Checked := proxyValue.isHttp;
     rbSocks.Checked := proxyValue.isSocks5;
+
+    cbAuth.Checked := proxyValue.isAuth;
+    eLogin.Text := proxyValue.login;
+    ePassword.Text := proxyValue.password;
   end;
+
+  ProcessAuthCheckBoxValue;
 end;
 
 procedure TfrmMain.FormShow(Sender: TObject);
@@ -96,12 +110,7 @@ var
   dir, dllPath, s: string;
   TaskDialog: TTaskDialog;
   opt: TDroverOptions;
-  proto, host: string;
-  port: integer;
 begin
-  if ShowDiscordRunningMessage then
-    exit;
-
   dllPath := currentProcessDir + DLL_FILENAME;
   if not FileExists(dllPath) then
   begin
@@ -109,32 +118,11 @@ begin
     exit;
   end;
 
-  proto := '';
-  if rbHttp.Checked then
-    proto := 'http';
-  if rbSocks.Checked then
-    proto := 'socks5';
-
-  host := Trim(eHost.Text);
-  port := StrToIntDef(Trim(ePort.Text), 0);
-
-  if proto = '' then
-  begin
-    Application.MessageBox('Protocol is not specified.', messageCaption, MB_ICONERROR);
+  if not ValidateAndPrepareProxySettings(opt.proxy) then
     exit;
-  end;
-  if host = '' then
-  begin
-    Application.MessageBox('Invalid host specified.', messageCaption, MB_ICONERROR);
-    exit;
-  end;
-  if (port < 1) or (port > 65535) then
-  begin
-    Application.MessageBox('Invalid port specified.', messageCaption, MB_ICONERROR);
-    exit;
-  end;
 
-  opt.proxy := Format('%s://%s:%d', [proto, host, port]);
+  if ShowDiscordRunningMessage then
+    exit;
 
   dirs := TStringList.Create;
   errors := TStringList.Create;
@@ -237,6 +225,11 @@ begin
     dirs.Free;
     errors.Free;
   end;
+end;
+
+procedure TfrmMain.cbAuthClick(Sender: TObject);
+begin
+  ProcessAuthCheckBoxValue;
 end;
 
 function TfrmMain.FindMostSuitableOptionsPath: string;
@@ -430,6 +423,83 @@ begin
   begin
     result := false;
   end;
+end;
+
+procedure TfrmMain.ProcessAuthCheckBoxValue;
+var
+  b: boolean;
+begin
+  b := cbAuth.Checked;
+  eLogin.Enabled := b;
+  lLogin.Enabled := b;
+  ePassword.Enabled := b;
+  lPassword.Enabled := b;
+end;
+
+function TfrmMain.ValidateAndPrepareProxySettings(var url: string): boolean;
+const
+  PROTO_SOCKS5 = 'socks5';
+var
+  s: string;
+  isAuth: boolean;
+  proto, host, login, password: string;
+  port: integer;
+begin
+  url := '';
+  result := false;
+
+  proto := '';
+  if rbHttp.Checked then
+    proto := 'http';
+  if rbSocks.Checked then
+    proto := PROTO_SOCKS5;
+
+  host := Trim(eHost.Text);
+  port := StrToIntDef(Trim(ePort.Text), 0);
+  isAuth := cbAuth.Checked;
+  login := Trim(eLogin.Text);
+  password := Trim(ePassword.Text);
+
+  if proto = '' then
+  begin
+    Application.MessageBox('Protocol is not specified.', messageCaption, MB_ICONERROR);
+    exit;
+  end;
+  if host = '' then
+  begin
+    Application.MessageBox('Invalid host specified.', messageCaption, MB_ICONERROR);
+    exit;
+  end;
+  if (port < 1) or (port > 65535) then
+  begin
+    Application.MessageBox('Invalid port specified.', messageCaption, MB_ICONERROR);
+    exit;
+  end;
+
+  if isAuth then
+  begin
+    if proto = PROTO_SOCKS5 then
+    begin
+      Application.MessageBox
+        ('Authentication for SOCKS5 is not supported in the current version. Please use an unprotected proxy or switch to HTTP if authentication is required.',
+        messageCaption, MB_ICONERROR);
+      exit;
+    end;
+    if (login = '') or (password = '') then
+    begin
+      Application.MessageBox('Fill in Login and Password or uncheck Authentication.', messageCaption, MB_ICONERROR);
+      exit;
+    end;
+  end;
+
+  s := proto + '://';
+  if isAuth then
+    s := s + login + ':' + password + '@';
+  s := s + host + ':' + IntToStr(port);
+
+  url := s;
+
+  result := true;
 end;
 
 end.

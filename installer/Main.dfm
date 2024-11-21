@@ -8,7 +8,7 @@ object frmMain: TfrmMain
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = 'Discord Drover'
-  ClientHeight = 310
+  ClientHeight = 520
   ClientWidth = 520
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -43,6 +43,28 @@ object frmMain: TfrmMain
     Margins.Right = 6
     Margins.Bottom = 6
     Caption = 'Port number:'
+  end
+  object lLogin: TLabel
+    Left = 20
+    Top = 303
+    Width = 64
+    Height = 32
+    Margins.Left = 6
+    Margins.Top = 6
+    Margins.Right = 6
+    Margins.Bottom = 6
+    Caption = 'Login:'
+  end
+  object lPassword: TLabel
+    Left = 20
+    Top = 373
+    Width = 102
+    Height = 32
+    Margins.Left = 6
+    Margins.Top = 6
+    Margins.Right = 6
+    Margins.Bottom = 6
+    Caption = 'Password:'
   end
   object pType: TPanel
     Left = 10
@@ -82,7 +104,7 @@ object frmMain: TfrmMain
   end
   object btnInstall: TButton
     Left = 20
-    Top = 240
+    Top = 450
     Width = 230
     Height = 50
     Margins.Left = 6
@@ -90,12 +112,12 @@ object frmMain: TfrmMain
     Margins.Right = 6
     Margins.Bottom = 6
     Caption = 'Install'
-    TabOrder = 3
+    TabOrder = 6
     OnClick = btnInstallClick
   end
   object btnUninstall: TButton
     Left = 270
-    Top = 240
+    Top = 450
     Width = 230
     Height = 50
     Margins.Left = 6
@@ -103,7 +125,7 @@ object frmMain: TfrmMain
     Margins.Right = 6
     Margins.Bottom = 6
     Caption = 'Uninstall'
-    TabOrder = 4
+    TabOrder = 7
     OnClick = btnUninstallClick
   end
   object eHost: TEdit
@@ -128,6 +150,41 @@ object frmMain: TfrmMain
     Margins.Bottom = 6
     NumbersOnly = True
     TabOrder = 2
+  end
+  object cbAuth: TCheckBox
+    Left = 20
+    Top = 230
+    Width = 283
+    Height = 40
+    Margins.Left = 6
+    Margins.Top = 6
+    Margins.Right = 6
+    Margins.Bottom = 6
+    Caption = 'Authentication'
+    TabOrder = 3
+    OnClick = cbAuthClick
+  end
+  object eLogin: TEdit
+    Left = 180
+    Top = 300
+    Width = 320
+    Height = 40
+    Margins.Left = 6
+    Margins.Top = 6
+    Margins.Right = 6
+    Margins.Bottom = 6
+    TabOrder = 4
+  end
+  object ePassword: TEdit
+    Left = 180
+    Top = 370
+    Width = 320
+    Height = 40
+    Margins.Left = 6
+    Margins.Top = 6
+    Margins.Right = 6
+    Margins.Bottom = 6
+    TabOrder = 5
   end
   object MainMenu: TMainMenu
     Left = 416
