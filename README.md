@@ -1,6 +1,8 @@
 # Discord Drover (Proxy Settings for Discord)
 
-Discord Drover is a program that forces the Discord application for Windows to use a specified proxy server (HTTP or SOCKS5) for TCP connections (chat, updates). This may be necessary because the original Discord application lacks proxy settings, and the global system proxy is also not used. Additionally, the program slightly interferes with Discord's outgoing UDP traffic, which helps bypass some local restrictions on voice chats.
+Discord Drover is a program that forces the Discord application for Windows to use a specified proxy server (HTTP or SOCKS5) for TCP connections (chat, updates). This may be necessary because the original Discord application lacks proxy settings, and the global system proxy is also not used.
+
+Additionally, the program slightly interferes with Discord's outgoing UDP traffic, which helps bypass some local restrictions on voice chats (UAE, Russia and others).
 
 The program works locally at the specific process level (without drivers) and does not affect the operating system globally. This approach serves as an alternative to using a global VPN (such as TUN interfaces and others).
 
@@ -29,7 +31,7 @@ proxy = http://127.0.0.1:1080
 ;nekobox-proxy = http://127.0.0.1:2080
 ```
 
-- **proxy**: Defines the main proxy server to use for Discord (HTTP or SOCKS5).
+- **proxy**: Defines the main proxy server to use for Discord (HTTP or SOCKS5). If left empty, no proxy will be used, but UDP manipulation will still occur to bypass voice chat restrictions.
 - **use-nekobox-proxy**: Enables the feature to detect if NekoBox is running and use a different proxy if found.
 - **nekobox-proxy**: The proxy used when NekoBox is detected, typically `127.0.0.1:2080`.
 
