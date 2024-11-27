@@ -15,29 +15,28 @@ uses
   Options;
 
 var
-  RealGetFileVersionInfoA: function(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
-  RealGetFileVersionInfoW: function(lptstrFilename: LPWSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
-  RealGetFileVersionInfoSizeA: function(lptstrFilename: LPSTR; var lpdwHandle: DWORD): DWORD; stdcall;
-  RealGetFileVersionInfoSizeW: function(lptstrFilename: LPWSTR; var lpdwHandle: DWORD): DWORD; stdcall;
-  RealVerFindFileA: function(uFlags: DWORD; szFileName, szWinDir, szAppDir, szCurDir: LPSTR; var lpuCurDirLen: UINT;
-    szDestDir: LPSTR; var lpuDestDirLen: UINT): DWORD; stdcall;
-  RealVerFindFileW: function(uFlags: DWORD; szFileName, szWinDir, szAppDir, szCurDir: LPWSTR; var lpuCurDirLen: UINT;
-    szDestDir: LPWSTR; var lpuDestDirLen: UINT): DWORD; stdcall;
-  RealVerInstallFileA: function(uFlags: DWORD; szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir,
-    szTmpFile: LPSTR; var lpuTmpFileLen: UINT): DWORD; stdcall;
-  RealVerInstallFileW: function(uFlags: DWORD; szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir,
-    szTmpFile: LPWSTR; var lpuTmpFileLen: UINT): DWORD; stdcall;
-  RealVerLanguageNameA: function(wLang: DWORD; szLang: LPSTR; nSize: DWORD): DWORD; stdcall;
-  RealVerLanguageNameW: function(wLang: DWORD; szLang: LPWSTR; nSize: DWORD): DWORD; stdcall;
-  RealVerQueryValueA: function(pBlock: Pointer; lpSubBlock: LPSTR; var lplpBuffer: Pointer; var puLen: UINT)
-    : bool; stdcall;
-  RealVerQueryValueW: function(pBlock: Pointer; lpSubBlock: LPWSTR; var lplpBuffer: Pointer; var puLen: UINT)
-    : bool; stdcall;
+  RealGetFileVersionInfoA: pointer;
+  RealGetFileVersionInfoByHandle: pointer;
+  RealGetFileVersionInfoExA: pointer;
+  RealGetFileVersionInfoExW: pointer;
+  RealGetFileVersionInfoSizeA: pointer;
+  RealGetFileVersionInfoSizeExA: pointer;
+  RealGetFileVersionInfoSizeExW: pointer;
+  RealGetFileVersionInfoSizeW: pointer;
+  RealGetFileVersionInfoW: pointer;
+  RealVerFindFileA: pointer;
+  RealVerFindFileW: pointer;
+  RealVerInstallFileA: pointer;
+  RealVerInstallFileW: pointer;
+  RealVerLanguageNameA: pointer;
+  RealVerLanguageNameW: pointer;
+  RealVerQueryValueA: pointer;
+  RealVerQueryValueW: pointer;
 
   RealGetEnvironmentVariableW: function(lpName: LPCWSTR; lpBuffer: LPWSTR; nSize: DWORD): DWORD; stdcall;
   RealCreateProcessW: function(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR;
     lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: bool; dwCreationFlags: DWORD;
-    lpEnvironment: Pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfoW;
+    lpEnvironment: pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfoW;
     var lpProcessInformation: TProcessInformation): bool; stdcall;
   RealGetCommandLineW: function: LPWSTR; stdcall;
 
@@ -58,70 +57,89 @@ var
   droverOptions: TDroverOptions;
   proxyValue: TProxyValue;
 
-function MyGetFileVersionInfoA(lptstrFilename: LPSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
-begin
-  result := RealGetFileVersionInfoA(lptstrFilename, dwHandle, dwLen, lpData);
+procedure MyGetFileVersionInfoA;
+asm
+  JMP [RealGetFileVersionInfoA]
 end;
 
-function MyGetFileVersionInfoW(lptstrFilename: LPWSTR; dwHandle, dwLen: DWORD; lpData: Pointer): bool; stdcall;
-begin
-  result := RealGetFileVersionInfoW(lptstrFilename, dwHandle, dwLen, lpData);
+procedure MyGetFileVersionInfoByHandle;
+asm
+  JMP [RealGetFileVersionInfoByHandle]
 end;
 
-function MyGetFileVersionInfoSizeA(lptstrFilename: LPSTR; var lpdwHandle: DWORD): DWORD; stdcall;
-begin
-  result := RealGetFileVersionInfoSizeA(lptstrFilename, lpdwHandle);
+procedure MyGetFileVersionInfoExA;
+asm
+  JMP [RealGetFileVersionInfoExA]
 end;
 
-function MyGetFileVersionInfoSizeW(lptstrFilename: LPWSTR; var lpdwHandle: DWORD): DWORD; stdcall;
-begin
-  result := RealGetFileVersionInfoSizeW(lptstrFilename, lpdwHandle);
+procedure MyGetFileVersionInfoExW;
+asm
+  JMP [RealGetFileVersionInfoExW]
 end;
 
-function MyVerFindFileA(uFlags: DWORD; szFileName, szWinDir, szAppDir, szCurDir: LPSTR; var lpuCurDirLen: UINT;
-  szDestDir: LPSTR; var lpuDestDirLen: UINT): DWORD; stdcall;
-begin
-  result := RealVerFindFileA(uFlags, szFileName, szWinDir, szAppDir, szCurDir, lpuCurDirLen, szDestDir, lpuDestDirLen);
+procedure MyGetFileVersionInfoSizeA;
+asm
+  JMP [RealGetFileVersionInfoSizeA]
 end;
 
-function MyVerFindFileW(uFlags: DWORD; szFileName, szWinDir, szAppDir, szCurDir: LPWSTR; var lpuCurDirLen: UINT;
-  szDestDir: LPWSTR; var lpuDestDirLen: UINT): DWORD; stdcall;
-begin
-  result := RealVerFindFileW(uFlags, szFileName, szWinDir, szAppDir, szCurDir, lpuCurDirLen, szDestDir, lpuDestDirLen);
+procedure MyGetFileVersionInfoSizeExA;
+asm
+  JMP [RealGetFileVersionInfoSizeExA]
 end;
 
-function MyVerInstallFileA(uFlags: DWORD; szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir,
-  szTmpFile: LPSTR; var lpuTmpFileLen: UINT): DWORD; stdcall;
-begin
-  result := RealVerInstallFileA(uFlags, szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir, szTmpFile,
-    lpuTmpFileLen);
+procedure MyGetFileVersionInfoSizeExW;
+asm
+  JMP [RealGetFileVersionInfoSizeExW]
 end;
 
-function MyVerInstallFileW(uFlags: DWORD; szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir,
-  szTmpFile: LPWSTR; var lpuTmpFileLen: UINT): DWORD; stdcall;
-begin
-  result := RealVerInstallFileW(uFlags, szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir, szTmpFile,
-    lpuTmpFileLen);
+procedure MyGetFileVersionInfoSizeW;
+asm
+  JMP [RealGetFileVersionInfoSizeW]
 end;
 
-function MyVerLanguageNameA(wLang: DWORD; szLang: LPSTR; nSize: DWORD): DWORD; stdcall;
-begin
-  result := RealVerLanguageNameA(wLang, szLang, nSize);
+procedure MyGetFileVersionInfoW;
+asm
+  JMP [RealGetFileVersionInfoW]
 end;
 
-function MyVerLanguageNameW(wLang: DWORD; szLang: LPWSTR; nSize: DWORD): DWORD; stdcall;
-begin
-  result := RealVerLanguageNameW(wLang, szLang, nSize);
+procedure MyVerFindFileA;
+asm
+  JMP [RealVerFindFileA]
 end;
 
-function MyVerQueryValueA(pBlock: Pointer; lpSubBlock: LPSTR; var lplpBuffer: Pointer; var puLen: UINT): bool; stdcall;
-begin
-  result := RealVerQueryValueA(pBlock, lpSubBlock, lplpBuffer, puLen);
+procedure MyVerFindFileW;
+asm
+  JMP [RealVerFindFileW]
 end;
 
-function MyVerQueryValueW(pBlock: Pointer; lpSubBlock: LPWSTR; var lplpBuffer: Pointer; var puLen: UINT): bool; stdcall;
-begin
-  result := RealVerQueryValueW(pBlock, lpSubBlock, lplpBuffer, puLen);
+procedure MyVerInstallFileA;
+asm
+  JMP [RealVerInstallFileA]
+end;
+
+procedure MyVerInstallFileW;
+asm
+  JMP [RealVerInstallFileW]
+end;
+
+procedure MyVerLanguageNameA;
+asm
+  JMP [RealVerLanguageNameA]
+end;
+
+procedure MyVerLanguageNameW;
+asm
+  JMP [RealVerLanguageNameW]
+end;
+
+procedure MyVerQueryValueA;
+asm
+  JMP [RealVerQueryValueA]
+end;
+
+procedure MyVerQueryValueW;
+asm
+  JMP [RealVerQueryValueW]
 end;
 
 function MyGetEnvironmentVariableW(lpName: LPCWSTR; lpBuffer: LPWSTR; nSize: DWORD): DWORD; stdcall;
@@ -176,7 +194,7 @@ end;
 
 function MyCreateProcessW(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR;
   lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: bool; dwCreationFlags: DWORD;
-  lpEnvironment: Pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfoW;
+  lpEnvironment: pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfoW;
   var lpProcessInformation: TProcessInformation): bool; stdcall;
 begin
   CopyFilesToNewVersionFolderIfNeeded(lpApplicationName);
@@ -290,9 +308,9 @@ begin
     if sockManagerItem.isUdp and (lpBuffers.len = 74) then
     begin
       payload := 0;
-      sendto(sock, Pointer(@payload)^, 1, 0, @lpTo, iTolen);
+      sendto(sock, pointer(@payload)^, 1, 0, @lpTo, iTolen);
       payload := 1;
-      sendto(sock, Pointer(@payload)^, 1, 0, @lpTo, iTolen);
+      sendto(sock, pointer(@payload)^, 1, 0, @lpTo, iTolen);
       Sleep(50);
     end;
   end;
@@ -426,18 +444,23 @@ begin
   if hOriginal = 0 then
     raise Exception.Create('Error.');
 
-  @RealGetFileVersionInfoA := GetProcAddress(hOriginal, 'GetFileVersionInfoA');
-  @RealGetFileVersionInfoW := GetProcAddress(hOriginal, 'GetFileVersionInfoW');
-  @RealGetFileVersionInfoSizeA := GetProcAddress(hOriginal, 'GetFileVersionInfoSizeA');
-  @RealGetFileVersionInfoSizeW := GetProcAddress(hOriginal, 'GetFileVersionInfoSizeW');
-  @RealVerFindFileA := GetProcAddress(hOriginal, 'VerFindFileA');
-  @RealVerFindFileW := GetProcAddress(hOriginal, 'VerFindFileW');
-  @RealVerInstallFileA := GetProcAddress(hOriginal, 'VerInstallFileA');
-  @RealVerInstallFileW := GetProcAddress(hOriginal, 'VerInstallFileW');
-  @RealVerLanguageNameA := GetProcAddress(hOriginal, 'VerLanguageNameA');
-  @RealVerLanguageNameW := GetProcAddress(hOriginal, 'VerLanguageNameW');
-  @RealVerQueryValueA := GetProcAddress(hOriginal, 'VerQueryValueA');
-  @RealVerQueryValueW := GetProcAddress(hOriginal, 'VerQueryValueW');
+  RealGetFileVersionInfoA := GetProcAddress(hOriginal, 'GetFileVersionInfoA');
+  RealGetFileVersionInfoByHandle := GetProcAddress(hOriginal, 'GetFileVersionInfoByHandle');
+  RealGetFileVersionInfoExA := GetProcAddress(hOriginal, 'GetFileVersionInfoExA');
+  RealGetFileVersionInfoExW := GetProcAddress(hOriginal, 'GetFileVersionInfoExW');
+  RealGetFileVersionInfoSizeA := GetProcAddress(hOriginal, 'GetFileVersionInfoSizeA');
+  RealGetFileVersionInfoSizeExA := GetProcAddress(hOriginal, 'GetFileVersionInfoSizeExA');
+  RealGetFileVersionInfoSizeExW := GetProcAddress(hOriginal, 'GetFileVersionInfoSizeExW');
+  RealGetFileVersionInfoSizeW := GetProcAddress(hOriginal, 'GetFileVersionInfoSizeW');
+  RealGetFileVersionInfoW := GetProcAddress(hOriginal, 'GetFileVersionInfoW');
+  RealVerFindFileA := GetProcAddress(hOriginal, 'VerFindFileA');
+  RealVerFindFileW := GetProcAddress(hOriginal, 'VerFindFileW');
+  RealVerInstallFileA := GetProcAddress(hOriginal, 'VerInstallFileA');
+  RealVerInstallFileW := GetProcAddress(hOriginal, 'VerInstallFileW');
+  RealVerLanguageNameA := GetProcAddress(hOriginal, 'VerLanguageNameA');
+  RealVerLanguageNameW := GetProcAddress(hOriginal, 'VerLanguageNameW');
+  RealVerQueryValueA := GetProcAddress(hOriginal, 'VerQueryValueA');
+  RealVerQueryValueW := GetProcAddress(hOriginal, 'VerQueryValueW');
 end;
 
 function IsNekoBoxExists: bool;
@@ -471,18 +494,23 @@ begin
 end;
 
 exports
-  MyGetFileVersionInfoA name 'GetFileVersionInfoA',
-  MyGetFileVersionInfoW name 'GetFileVersionInfoW',
-  MyGetFileVersionInfoSizeA name 'GetFileVersionInfoSizeA',
-  MyGetFileVersionInfoSizeW name 'GetFileVersionInfoSizeW',
-  MyVerFindFileA name 'VerFindFileA',
-  MyVerFindFileW name 'VerFindFileW',
-  MyVerInstallFileA name 'VerInstallFileA',
-  MyVerInstallFileW name 'VerInstallFileW',
-  MyVerLanguageNameA name 'VerLanguageNameA',
-  MyVerLanguageNameW name 'VerLanguageNameW',
-  MyVerQueryValueA name 'VerQueryValueA',
-  MyVerQueryValueW name 'VerQueryValueW';
+  MyGetFileVersionInfoA index 1 name 'GetFileVersionInfoA',
+  MyGetFileVersionInfoByHandle index 2 name 'GetFileVersionInfoByHandle',
+  MyGetFileVersionInfoExA index 3 name 'GetFileVersionInfoExA',
+  MyGetFileVersionInfoExW index 4 name 'GetFileVersionInfoExW',
+  MyGetFileVersionInfoSizeA index 5 name 'GetFileVersionInfoSizeA',
+  MyGetFileVersionInfoSizeExA index 6 name 'GetFileVersionInfoSizeExA',
+  MyGetFileVersionInfoSizeExW index 7 name 'GetFileVersionInfoSizeExW',
+  MyGetFileVersionInfoSizeW index 8 name 'GetFileVersionInfoSizeW',
+  MyGetFileVersionInfoW index 9 name 'GetFileVersionInfoW',
+  MyVerFindFileA index 10 name 'VerFindFileA',
+  MyVerFindFileW index 11 name 'VerFindFileW',
+  MyVerInstallFileA index 12 name 'VerInstallFileA',
+  MyVerInstallFileW index 13 name 'VerInstallFileW',
+  MyVerLanguageNameA index 14 name 'VerLanguageNameA',
+  MyVerLanguageNameW index 15 name 'VerLanguageNameW',
+  MyVerQueryValueA index 16 name 'VerQueryValueA',
+  MyVerQueryValueW index 17 name 'VerQueryValueW';
 
 begin
   currentProcessDir := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
