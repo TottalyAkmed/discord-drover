@@ -2,7 +2,7 @@
 
 Discord Drover is a program that forces the Discord application for Windows to use a specified proxy server (HTTP or SOCKS5) for TCP connections (chat, updates). This may be necessary because the original Discord application lacks proxy settings, and the global system proxy is also not used.
 
-Additionally, the program slightly interferes with Discord's outgoing UDP traffic, which helps bypass some local restrictions on voice chats (UAE, Russia and others).
+Additionally, the program slightly interferes with Discord's outgoing UDP traffic, which helps bypass some local restrictions on voice chats.
 
 The program works locally at the specific process level (without drivers) and does not affect the operating system globally. This approach serves as an alternative to using a global VPN (such as TUN interfaces and others).
 

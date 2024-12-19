@@ -12,7 +12,9 @@ uses
   System.RegularExpressions,
   System.NetEncoding,
   SocketManager,
-  Options;
+  Options,
+  System.IOUtils,
+  Classes;
 
 var
   RealGetFileVersionInfoA: pointer;
@@ -56,6 +58,9 @@ var
   sockManager: TSocketManager;
   droverOptions: TDroverOptions;
   proxyValue: TProxyValue;
+
+const
+  DISCORD_FILENAME = 'Discord.exe';
 
 procedure MyGetFileVersionInfoA;
 asm
@@ -163,33 +168,69 @@ begin
   result := RealGetEnvironmentVariableW(lpName, lpBuffer, nSize);
 end;
 
-procedure CopyFilesToNewVersionFolderIfNeeded(lpApplicationName: LPCWSTR);
+procedure FindDiscordDirs(list: TStringList);
 var
-  launchingDir: string;
+  subdirs: TArray<string>;
+  s, subdir, baseDir: string;
+begin
+  baseDir := IncludeTrailingPathDelimiter(ExtractFilePath(ExcludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)))));
+  if TDirectory.Exists(baseDir) then
+  begin
+    subdirs := TDirectory.GetDirectories(baseDir, 'app-*', TSearchOption.soTopDirectoryOnly);
+    for subdir in subdirs do
+    begin
+      s := IncludeTrailingPathDelimiter(subdir);
+      if FileExists(s + DISCORD_FILENAME) then
+      begin
+        list.Add(s);
+      end;
+    end;
+  end;
+end;
+
+procedure CopyFilesToAllDiscordDirs;
+var
+  dirs: TStringList;
+  dir: string;
   srcOptionsPath, srcDllPath, dstOptionsPath, dstDllPath: string;
+begin
+  srcOptionsPath := currentProcessDir + OPTIONS_FILENAME;
+  srcDllPath := currentProcessDir + DLL_FILENAME;
+
+  if not FileExists(srcOptionsPath) or not FileExists(srcDllPath) then
+    exit;
+
+  dirs := TStringList.Create;
+  try
+    FindDiscordDirs(dirs);
+
+    for dir in dirs do
+    begin
+      dstOptionsPath := dir + OPTIONS_FILENAME;
+      dstDllPath := dir + DLL_FILENAME;
+
+      if FileExists(dir + DISCORD_FILENAME) and not FileExists(dstOptionsPath) and not FileExists(dstDllPath) then
+      begin
+        CopyFile(PChar(srcOptionsPath), PChar(dstOptionsPath), true);
+        CopyFile(PChar(srcDllPath), PChar(dstDllPath), true);
+      end;
+    end;
+  finally
+    dirs.Free;
+  end;
+end;
+
+procedure CopyFilesOnCreateProcessIfNeeded(lpApplicationName: LPCWSTR);
+var
+  appName: string;
 begin
   if lpApplicationName = nil then
     exit;
 
-  if not SameText(ExtractFileName(lpApplicationName), 'Discord.exe') then
-    exit;
+  appName := ExtractFileName(lpApplicationName);
 
-  if not SameText(ExtractFileName(ParamStr(0)), 'Discord.exe') then
-    exit;
-
-  launchingDir := IncludeTrailingPathDelimiter(ExtractFilePath(lpApplicationName));
-
-  srcOptionsPath := currentProcessDir + OPTIONS_FILENAME;
-  srcDllPath := currentProcessDir + DLL_FILENAME;
-  dstOptionsPath := launchingDir + OPTIONS_FILENAME;
-  dstDllPath := launchingDir + DLL_FILENAME;
-
-  if FileExists(launchingDir + 'Discord.exe') and FileExists(srcOptionsPath) and FileExists(srcDllPath) and
-    not FileExists(dstOptionsPath) and not FileExists(dstDllPath) then
-  begin
-    CopyFile(PChar(srcOptionsPath), PChar(dstOptionsPath), true);
-    CopyFile(PChar(srcDllPath), PChar(dstDllPath), true);
-  end;
+  if SameText(appName, DISCORD_FILENAME) or SameText(appName, 'reg.exe') then
+    CopyFilesToAllDiscordDirs;
 end;
 
 function MyCreateProcessW(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR;
@@ -197,7 +238,7 @@ function MyCreateProcessW(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR;
   lpEnvironment: pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfoW;
   var lpProcessInformation: TProcessInformation): bool; stdcall;
 begin
-  CopyFilesToNewVersionFolderIfNeeded(lpApplicationName);
+  CopyFilesOnCreateProcessIfNeeded(lpApplicationName);
 
   result := RealCreateProcessW(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes,
     bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
@@ -210,7 +251,7 @@ begin
   s := RealGetCommandLineW;
   if proxyValue.isSpecified then
   begin
-    if SameText(ExtractFileName(ParamStr(0)), 'Discord.exe') then
+    if SameText(ExtractFileName(ParamStr(0)), DISCORD_FILENAME) then
       s := s + ' --proxy-server=' + proxyValue.FormatToChromeProxy;
   end;
   result := PChar(s);
