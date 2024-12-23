@@ -14,7 +14,8 @@ uses
   SocketManager,
   Options,
   System.IOUtils,
-  Classes;
+  Classes,
+  DiscordFolders;
 
 var
   RealGetFileVersionInfoA: pointer;
@@ -58,9 +59,6 @@ var
   sockManager: TSocketManager;
   droverOptions: TDroverOptions;
   proxyValue: TProxyValue;
-
-const
-  DISCORD_FILENAME = 'Discord.exe';
 
 procedure MyGetFileVersionInfoA;
 asm
@@ -180,7 +178,7 @@ begin
     for subdir in subdirs do
     begin
       s := IncludeTrailingPathDelimiter(subdir);
-      if FileExists(s + DISCORD_FILENAME) then
+      if DirHasDiscordExecutable(s) then
       begin
         list.Add(s);
       end;
@@ -209,7 +207,7 @@ begin
       dstOptionsPath := dir + OPTIONS_FILENAME;
       dstDllPath := dir + DLL_FILENAME;
 
-      if FileExists(dir + DISCORD_FILENAME) and not FileExists(dstOptionsPath) and not FileExists(dstDllPath) then
+      if DirHasDiscordExecutable(dir) and not FileExists(dstOptionsPath) and not FileExists(dstDllPath) then
       begin
         CopyFile(PChar(srcOptionsPath), PChar(dstOptionsPath), true);
         CopyFile(PChar(srcDllPath), PChar(dstDllPath), true);
@@ -229,7 +227,7 @@ begin
 
   appName := ExtractFileName(lpApplicationName);
 
-  if SameText(appName, DISCORD_FILENAME) or SameText(appName, 'reg.exe') then
+  if IsDiscordExecutable(appName) or SameText(appName, 'reg.exe') then
     CopyFilesToAllDiscordDirs;
 end;
 
@@ -251,7 +249,7 @@ begin
   s := RealGetCommandLineW;
   if proxyValue.isSpecified then
   begin
-    if SameText(ExtractFileName(ParamStr(0)), DISCORD_FILENAME) then
+    if IsDiscordExecutable(ExtractFileName(ParamStr(0))) then
       s := s + ' --proxy-server=' + proxyValue.FormatToChromeProxy;
   end;
   result := PChar(s);
