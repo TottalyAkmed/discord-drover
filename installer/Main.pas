@@ -27,12 +27,16 @@ type
     ePassword: TEdit;
     lLogin: TLabel;
     lPassword: TLabel;
+    rbDirect: TRadioButton;
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnInstallClick(Sender: TObject);
     procedure btnUninstallClick(Sender: TObject);
     procedure miAboutClick(Sender: TObject);
     procedure cbAuthClick(Sender: TObject);
+    procedure rbDirectClick(Sender: TObject);
+    procedure rbHttpClick(Sender: TObject);
+    procedure rbSocksClick(Sender: TObject);
   private
     currentProcessDir: string;
     messageCaption: PChar;
@@ -43,6 +47,7 @@ type
     function GetNewestDiscordDir(list: TStringList): string;
     function IsDiscordRunning: boolean;
     function ShowDiscordRunningMessage: boolean;
+    procedure ProcessProxyTypeRadioButtonValue;
     procedure ProcessAuthCheckBoxValue;
     function ValidateAndPrepareProxySettings(var url: string): boolean;
   public
@@ -79,19 +84,21 @@ begin
 
   proxyValue.ParseFromString(opt.proxy);
 
-  if proxyValue.isSpecified then
-  begin
-    eHost.Text := proxyValue.host;
-    ePort.Text := IntToStr(proxyValue.port);
-    rbHttp.Checked := proxyValue.isHttp;
-    rbSocks.Checked := proxyValue.isSocks5;
+  rbHttp.Checked := proxyValue.isHttp;
+  rbSocks.Checked := proxyValue.isSocks5;
+  rbDirect.Checked := not proxyValue.isSpecified;
 
-    cbAuth.Checked := proxyValue.isAuth;
-    eLogin.Text := proxyValue.login;
-    ePassword.Text := proxyValue.password;
-  end;
+  eHost.Text := proxyValue.host;
+  if proxyValue.port > 0 then
+    ePort.Text := IntToStr(proxyValue.port)
+  else
+    ePort.Text := '';
 
-  ProcessAuthCheckBoxValue;
+  cbAuth.Checked := proxyValue.isAuth;
+  eLogin.Text := proxyValue.login;
+  ePassword.Text := proxyValue.password;
+
+  ProcessProxyTypeRadioButtonValue;
 end;
 
 procedure TfrmMain.FormShow(Sender: TObject);
@@ -225,6 +232,21 @@ begin
     dirs.Free;
     errors.Free;
   end;
+end;
+
+procedure TfrmMain.rbHttpClick(Sender: TObject);
+begin
+  ProcessProxyTypeRadioButtonValue;
+end;
+
+procedure TfrmMain.rbSocksClick(Sender: TObject);
+begin
+  ProcessProxyTypeRadioButtonValue;
+end;
+
+procedure TfrmMain.rbDirectClick(Sender: TObject);
+begin
+  ProcessProxyTypeRadioButtonValue;
 end;
 
 procedure TfrmMain.cbAuthClick(Sender: TObject);
@@ -430,11 +452,25 @@ begin
   end;
 end;
 
+procedure TfrmMain.ProcessProxyTypeRadioButtonValue;
+var
+  b: boolean;
+begin
+  b := not rbDirect.Checked;
+  eHost.Enabled := b;
+  lHost.Enabled := b;
+  ePort.Enabled := b;
+  lPort.Enabled := b;
+  cbAuth.Enabled := b;
+
+  ProcessAuthCheckBoxValue;
+end;
+
 procedure TfrmMain.ProcessAuthCheckBoxValue;
 var
   b: boolean;
 begin
-  b := cbAuth.Checked;
+  b := cbAuth.Checked and cbAuth.Enabled;
   eLogin.Enabled := b;
   lLogin.Enabled := b;
   ePassword.Enabled := b;
@@ -451,6 +487,10 @@ var
   port: integer;
 begin
   url := '';
+
+  if rbDirect.Checked then
+    exit(true);
+
   result := false;
 
   proto := '';

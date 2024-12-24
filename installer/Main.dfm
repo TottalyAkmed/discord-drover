@@ -88,6 +88,7 @@ object frmMain: TfrmMain
       Margins.Bottom = 6
       Caption = 'HTTP'
       TabOrder = 0
+      OnClick = rbHttpClick
     end
     object rbSocks: TRadioButton
       Left = 140
@@ -100,6 +101,20 @@ object frmMain: TfrmMain
       Margins.Bottom = 6
       Caption = 'SOCKS5'
       TabOrder = 1
+      OnClick = rbSocksClick
+    end
+    object rbDirect: TRadioButton
+      Left = 299
+      Top = 10
+      Width = 226
+      Height = 40
+      Margins.Left = 6
+      Margins.Top = 6
+      Margins.Right = 6
+      Margins.Bottom = 6
+      Caption = 'Direct'
+      TabOrder = 2
+      OnClick = rbDirectClick
     end
   end
   object btnInstall: TButton
