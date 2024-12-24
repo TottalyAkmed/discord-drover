@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, System.Win.Registry, System.RegularExpressions,
-  System.IOUtils, Options, TlHelp32, Vcl.Menus, ShellApi;
+  System.IOUtils, Options, TlHelp32, Vcl.Menus, ShellApi, DiscordFolders;
 
 type
   TVersion = array [0 .. 3] of integer;
@@ -263,28 +263,35 @@ procedure TfrmMain.FindDiscordBaseDirs(list: TStringList);
 var
   reg: TRegistry;
   match: TMatch;
-  s, installLoc: string;
+  s, app: string;
+const
+  APPS: array [0 .. 2] of string = ('Discord', 'DiscordCanary', 'DiscordPTB');
 begin
+  list.Clear;
+  list.Sorted := true;
+  list.Duplicates := dupIgnore;
+  list.CaseSensitive := false;
+
   reg := TRegistry.Create(KEY_QUERY_VALUE);
   try
     reg.RootKey := HKEY_CURRENT_USER;
 
-    if reg.OpenKeyReadOnly('Software\Microsoft\Windows\CurrentVersion\Uninstall\Discord') then
+    for app in APPS do
     begin
-      if reg.ValueExists('InstallLocation') then
+      if reg.OpenKeyReadOnly('Software\Microsoft\Windows\CurrentVersion\Uninstall\' + app) then
       begin
-        s := reg.ReadString('InstallLocation');
-        if s <> '' then
+        if reg.ValueExists('InstallLocation') then
         begin
-          s := IncludeTrailingPathDelimiter(s);
-          if DirectoryExists(s) then
+          s := reg.ReadString('InstallLocation');
+          if s <> '' then
           begin
-            installLoc := s;
-            list.Add(s);
+            s := IncludeTrailingPathDelimiter(s);
+            if DirectoryExists(s) then
+              list.Add(s);
           end;
         end;
+        reg.CloseKey;
       end;
-      reg.CloseKey;
     end;
 
     if reg.OpenKeyReadOnly('Software\Classes\Discord\shell\open\command') then
@@ -298,10 +305,8 @@ begin
           if match.Success then
           begin
             s := match.Groups[1].Value;
-            if (not SameText(s, installLoc)) and DirectoryExists(s) then
-            begin
+            if DirectoryExists(s) then
               list.Add(s);
-            end;
           end;
         end;
       end;
@@ -329,7 +334,7 @@ begin
         for subfolder in subfolders do
         begin
           s := IncludeTrailingPathDelimiter(subfolder);
-          if FileExists(s + 'Discord.exe') then
+          if DirHasDiscordExecutable(s) then
           begin
             list.Add(s);
           end;
@@ -400,7 +405,7 @@ begin
     if Process32First(snapshot, processEntry) then
     begin
       repeat
-        if SameText(ExtractFileName(processEntry.szExeFile), 'Discord.exe') then
+        if IsDiscordExecutable(ExtractFileName(processEntry.szExeFile)) then
         begin
           result := true;
           break;

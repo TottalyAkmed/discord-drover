@@ -142,6 +142,7 @@
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="..\Options.pas"/>
+        <DCCReference Include="..\DiscordFolders.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -3,7 +3,8 @@
 uses
   Vcl.Forms,
   Main in 'Main.pas' {frmMain},
-  Options in '..\Options.pas';
+  Options in '..\Options.pas',
+  DiscordFolders in '..\DiscordFolders.pas';
 
 {$R *.res}
 
