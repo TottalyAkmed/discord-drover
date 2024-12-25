@@ -42,3 +42,4 @@ proxy = http://127.0.0.1:1080
 - Supports HTTP proxies with authentication (login and password).
 - No drivers or system-level modifications are required.
 - Works locally at the process level, offering an alternative to global VPN solutions.
+- Supports Discord Canary and PTB versions in addition to the main version.
