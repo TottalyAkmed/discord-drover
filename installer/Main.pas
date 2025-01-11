@@ -152,7 +152,7 @@ begin
         errors.Add(s);
 
       s := dir + DLL_FILENAME;
-      if not CopyFile(PChar(dllPath), PChar(s), false) then
+      if not SameText(dllPath, s) and not CopyFile(PChar(dllPath), PChar(s), false) then
         errors.Add(s);
     end;
 
